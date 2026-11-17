@@ -1,0 +1,17 @@
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+.env
+.env.local
+storage/
+prisma/*.db
+prisma/*.db-journal
+evals/results/*.json
+!evals/results/.gitkeep
+test-results/
+coverage/
+.test-storage/
+prisma/test.db*
+.e2e-media/
+demo-assets/

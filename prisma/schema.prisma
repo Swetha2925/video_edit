@@ -1,0 +1,239 @@
+// ReelCraft AI data model.
+// Local development uses SQLite. To move to PostgreSQL change `provider` to
+// "postgresql" and DATABASE_URL accordingly; JSON documents are stored as
+// strings validated by Zod in application code, so no schema changes are needed.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String    @id
+  displayName String    @default("Local creator")
+  createdAt   DateTime  @default(now())
+  projects    Project[]
+}
+
+model Project {
+  id              String   @id
+  ownerId         String
+  owner           User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name            String
+  description     String   @default("")
+  prompt          String   @default("")
+  platform        String   @default("instagram_reels")
+  aspectRatio     String   @default("9:16")
+  durationSec     Float    @default(30)
+  width           Int      @default(1080)
+  height          Int      @default(1920)
+  fps             Int      @default(30)
+  style           String   @default("cinematic_travel")
+  mood            String   @default("")
+  language        String   @default("en")
+  captionsEnabled Boolean  @default(true)
+  musicPreference String   @default("")
+  silentOutput    Boolean  @default(false)
+  requireApproval Boolean  @default(true)
+  // Workflow state (see src/server/harness/stateMachine.ts)
+  stage           String   @default("draft")
+  stageMessage    String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  assets      Asset[]
+  briefs      Brief[]
+  storyboards Storyboard[]
+  edls        Edl[]
+  renders     Render[]
+  jobs        Job[]
+  feedback    Feedback[]
+  events      ProjectEvent[]
+  toolCalls   ToolCall[]
+  modelCalls  ModelCall[]
+
+  @@index([ownerId, updatedAt])
+}
+
+model Asset {
+  id            String   @id
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind          String // image | video | audio
+  originalName  String
+  storedName    String
+  mimeType      String
+  sizeBytes     Int
+  durationSec   Float?
+  width         Int?
+  height        Int?
+  orientation   String? // portrait | landscape | square
+  fps           Float?
+  hasAudio      Boolean  @default(false)
+  codec         String?
+  thumbnailPath String?
+  status        String   @default("processing") // processing | ready | failed
+  error         String?
+  excluded      Boolean  @default(false)
+  sortOrder     Int      @default(0)
+  metricsJson   String? // deterministic metrics: brightness, blur, beats...
+  analysisJson  String? // Claude vision analysis (validated)
+  licenseJson   String? // music licence / source metadata
+  createdAt     DateTime @default(now())
+
+  @@index([projectId])
+}
+
+model Brief {
+  id        String   @id
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  version   Int
+  json      String
+  source    String // ai | heuristic | user
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, version])
+}
+
+model Storyboard {
+  id            String    @id
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  version       Int
+  parentVersion Int?
+  json          String
+  source        String // ai | heuristic | user_edit | revision | auto_fix
+  note          String    @default("")
+  approved      Boolean   @default(false)
+  approvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@unique([projectId, version])
+}
+
+model Edl {
+  id                String   @id
+  projectId         String
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  version           Int
+  storyboardVersion Int?
+  json              String
+  validationJson    String
+  valid             Boolean
+  createdAt         DateTime @default(now())
+
+  @@unique([projectId, version])
+}
+
+model Render {
+  id             String    @id
+  projectId      String
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  version        Int
+  edlVersion     Int
+  status         String // queued | rendering | checking | passed | failed | cancelled
+  label          String    @default("")
+  outputPath     String?
+  sizeBytes      Int?
+  durationSec    Float?
+  width          Int?
+  height         Int?
+  fps            Float?
+  qcJson         String?
+  parentRenderId String?
+  autoFixAttempt Int       @default(0)
+  error          String?
+  renderMs       Int?
+  createdAt      DateTime  @default(now())
+  finishedAt     DateTime?
+
+  @@unique([projectId, version])
+}
+
+model Job {
+  id              String    @id
+  projectId       String
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type            String // analyse | plan | render | revise
+  status          String    @default("queued") // queued | running | succeeded | failed | cancelled
+  payloadJson     String    @default("{}")
+  resultJson      String?
+  error           String?
+  attempts        Int       @default(0)
+  maxAttempts     Int       @default(2)
+  progress        Float     @default(0)
+  message         String    @default("")
+  cancelRequested Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  heartbeatAt     DateTime?
+
+  @@index([status, createdAt])
+  @@index([projectId, createdAt])
+}
+
+model Feedback {
+  id                String   @id
+  projectId         String
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  message           String
+  status            String   @default("pending") // pending | applied | failed | needs_clarification
+  summary           String   @default("")
+  fromStoryboardVer Int?
+  toStoryboardVer   Int?
+  createdAt         DateTime @default(now())
+}
+
+model ProjectEvent {
+  id        String   @id
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  level     String   @default("info") // info | success | warning | error
+  kind      String
+  message   String
+  dataJson  String?
+  createdAt DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}
+
+model ToolCall {
+  id            String   @id
+  projectId     String?
+  project       Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  jobId         String?
+  tool          String
+  status        String // ok | error | timeout | cancelled
+  durationMs    Int
+  error         String?
+  inputSummary  String   @default("")
+  outputSummary String   @default("")
+  createdAt     DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}
+
+model ModelCall {
+  id               String   @id
+  projectId        String?
+  project          Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  purpose          String
+  model            String
+  status           String // ok | error | refusal | invalid_output
+  inputTokens      Int      @default(0)
+  outputTokens     Int      @default(0)
+  cacheReadTokens  Int      @default(0)
+  cacheWriteTokens Int      @default(0)
+  durationMs       Int
+  stopReason       String?
+  error            String?
+  createdAt        DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}

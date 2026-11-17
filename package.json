@@ -1,0 +1,42 @@
+{
+  "name": "reelcraft-ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate",
+    "setup": "node scripts/setup.mjs",
+    "demo:assets": "tsx scripts/generate-demo-assets.ts",
+    "eval": "tsx evals/run.ts",
+    "e2e": "tsx scripts/e2e-smoke.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.9.0",
+    "@prisma/client": "6.19.3",
+    "ffmpeg-static": "5.3.0",
+    "ffprobe-static": "3.1.0",
+    "lucide-react": "1.73.0",
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.5",
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "prisma": "6.19.3",
+    "tailwindcss": "4.3.5",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12"
+  }
+}
