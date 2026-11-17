@@ -37,6 +37,8 @@ export function styleSpec(style: TextStyleId, typography: TypographyId): StyleSp
       return { font: t.body, basePx: 52, minPx: 40, bold: true, italic: false, uppercase: false, spacingPx: 0, maxLines: 3 };
     case "kicker":
       return { font: t.body, basePx: 40, minPx: 34, bold: true, italic: false, uppercase: true, spacingPx: 6, maxLines: 2 };
+    case "label":
+      return { font: t.body, basePx: 50, minPx: 38, bold: true, italic: false, uppercase: false, spacingPx: 1, maxLines: 3 };
     case "quote":
       return { font: t.title === "Bebas Neue" ? "Playfair Display" : t.title, basePx: 70, minPx: 46, bold: false, italic: true, uppercase: false, spacingPx: 0, maxLines: 4 };
   }

@@ -4,7 +4,7 @@ import { readJpegOrientation, parseRate } from "@/server/media/probe";
 import { resolveProjectPath, sanitizeDisplayName } from "@/server/storage";
 import { signUserId, verifySessionValue } from "@/server/auth";
 import { canTransition } from "@/server/harness/stateMachine";
-import { sanitizeAssText } from "@/server/render/ass";
+import { buildAssScript, sanitizeAssText } from "@/server/render/ass";
 import { analyseSamples } from "@/server/media/audio";
 import { summarizeMetrics } from "@/server/media/derive";
 import { gradeFilter, exposureFixFor } from "@/server/render/grades";
@@ -123,6 +123,14 @@ describe("typography + grading safety", () => {
     expect(s).not.toContain("}");
     expect(s).not.toContain("\\");
     expect(s).not.toContain("\n");
+  });
+  it("renders typewriter reveals and boxed labels in ASS", () => {
+    const base = { id: "t1", sceneId: "s1", startSec: 0, endSec: 2, font: "Inter", sizePx: 50, bold: true, italic: false, uppercase: false, spacingPx: 0, color: "#FFFFFF", x: 540, y: 960, align: "center" as const, fadeInMs: 300, fadeOutMs: 300, box: { left: 0, top: 0, right: 1, bottom: 1 } };
+    const edl = { output: { width: 1080, height: 1920 }, texts: [{ ...base, lines: ["Hi there"], animation: "typewriter", boxed: false }, { ...base, id: "t2", lines: ["Label"], animation: "pop", boxed: true }] } as never;
+    const ass = buildAssScript(edl);
+    expect(ass).toMatch(/\{\\alpha&HFF&\\t\(0,80,\\alpha&H00&\)\}H/);
+    expect(ass.split("\n").filter((l) => l.startsWith("Style:")).some((l) => l.split(",")[15] === "3")).toBe(true);
+    expect(ass).toContain("\\fscx70");
   });
   it("bounds grade parameters", () => {
     const f = gradeFilter("vibrant", 5, 0.5);

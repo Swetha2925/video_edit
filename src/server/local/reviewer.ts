@@ -88,7 +88,10 @@ export async function reviewLocally(opts: {
     const bg = (above.meanLuma + below.meanLuma) / 2;
     if (bg > 205) {
       textProblems++;
-      issues.push({ severity: "medium", description: `Text "${t.lines.join(" ").slice(0, 40)}" sits on a very bright background (luma ≈ ${Math.round(bg)}), which can hurt legibility.`, timeSec: Math.round(mid * 100) / 100, sceneId: t.sceneId, suggestedFix: "Move the text to a darker part of the frame or reduce brightness in that scene.", certainty: "likely" });
+      const scene = opts.storyboard?.scenes.find((s) => s.id === t.sceneId);
+      const severe = bg > 225 && !t.boxed && Boolean(scene?.text);
+      if (severe && scene?.text) fixes.push({ op: "update_scene", sceneId: scene.id, changes: { text: { ...scene.text, style: scene.text.style === "title" ? "title" : "label" } } });
+      issues.push({ severity: severe && scene?.text?.style !== "title" ? "high" : "medium", description: `Text "${t.lines.join(" ").slice(0, 40)}" sits on a very bright background (luma ≈ ${Math.round(bg)}), which can hurt legibility.`, timeSec: Math.round(mid * 100) / 100, sceneId: t.sceneId, suggestedFix: "Move the text to a darker part of the frame or reduce brightness in that scene.", certainty: "likely" });
     }
   }
 

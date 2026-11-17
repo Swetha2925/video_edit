@@ -248,6 +248,8 @@ export const EdlTextSchema = z.object({
   y: z.number().int(),
   align: z.enum(["top", "center", "bottom"]),
   animation: z.enum(TEXT_ANIMATIONS),
+  /** Draw a translucent box behind the text (label style) for busy backgrounds. */
+  boxed: z.boolean().default(false),
   fadeInMs: z.number().int().min(0).max(3000),
   fadeOutMs: z.number().int().min(0).max(3000),
   /** Estimated rendered box, used for safe-area validation. */

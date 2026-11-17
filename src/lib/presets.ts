@@ -61,16 +61,16 @@ export function safeArea(platform: string, width: number, height: number) {
 }
 
 export const STYLES = {
-  cinematic_travel: { label: "Cinematic travel", grade: "warm_natural", typography: "elegant_serif", pacing: "medium", transitions: ["fade", "dissolve", "smooth_left", "zoom_in"], motion: "subtle" },
-  emotional_memories: { label: "Emotional memories", grade: "vintage_film", typography: "classic_garamond", pacing: "slow", transitions: ["fade", "dissolve", "fade_white"], motion: "subtle" },
+  cinematic_travel: { label: "Cinematic travel", grade: "warm_natural", typography: "elegant_serif", pacing: "medium", transitions: ["fade", "dissolve", "blur_dissolve", "smooth_left", "zoom_in"], motion: "subtle" },
+  emotional_memories: { label: "Emotional memories", grade: "vintage_film", typography: "classic_garamond", pacing: "slow", transitions: ["fade", "dissolve", "fade_grays", "fade_white"], motion: "subtle" },
   minimal_aesthetic: { label: "Minimal aesthetic", grade: "bright_airy", typography: "minimal", pacing: "medium", transitions: ["fade", "cut"], motion: "subtle" },
-  fashion_lifestyle: { label: "Fashion / lifestyle", grade: "cinematic_teal_orange", typography: "bold_display", pacing: "fast", transitions: ["cut", "slide_up", "smooth_left", "zoom_in"], motion: "medium" },
+  fashion_lifestyle: { label: "Fashion / lifestyle", grade: "cinematic_teal_orange", typography: "bold_display", pacing: "fast", transitions: ["cut", "slide_up", "smooth_left", "slide_right", "zoom_in"], motion: "medium" },
   food_product: { label: "Food & product showcase", grade: "vibrant", typography: "modern_sans", pacing: "medium", transitions: ["cut", "smooth_up", "fade"], motion: "medium" },
   product_ad: { label: "Product advertisement", grade: "cool_crisp", typography: "modern_sans", pacing: "medium", transitions: ["cut", "fade", "slide_left"], motion: "subtle" },
   event_highlights: { label: "Event highlights", grade: "vibrant", typography: "bold_display", pacing: "fast", transitions: ["cut", "fade", "zoom_in"], motion: "medium" },
-  birthday: { label: "Birthday celebration", grade: "bright_airy", typography: "handwritten", pacing: "medium", transitions: ["fade", "circle_open", "fade_white"], motion: "medium" },
+  birthday: { label: "Birthday celebration", grade: "bright_airy", typography: "handwritten", pacing: "medium", transitions: ["fade", "circle_open", "circle_close", "fade_white"], motion: "medium" },
   documentary: { label: "Documentary / storytelling", grade: "natural", typography: "classic_garamond", pacing: "slow", transitions: ["cut", "fade", "fade_black"], motion: "subtle" },
-  energetic_montage: { label: "Energetic montage", grade: "vibrant", typography: "bold_display", pacing: "fast", transitions: ["cut", "zoom_in", "slide_left", "slide_up"], motion: "strong" },
+  energetic_montage: { label: "Energetic montage", grade: "vibrant", typography: "bold_display", pacing: "fast", transitions: ["cut", "zoom_in", "slide_left", "slide_up", "smooth_down", "wipe_up"], motion: "strong" },
   business_promo: { label: "Professional business promo", grade: "cool_crisp", typography: "modern_sans", pacing: "medium", transitions: ["fade", "slide_left", "cut"], motion: "subtle" },
 } as const;
 export type StyleId = keyof typeof STYLES;
@@ -117,6 +117,13 @@ export const TRANSITIONS = {
   circle_open: { label: "Circle reveal", xfade: "circleopen" },
   zoom_in: { label: "Zoom-in blend", xfade: "zoomin" },
   radial: { label: "Radial wipe", xfade: "radial" },
+  blur_dissolve: { label: "Blur dissolve", xfade: "hblur" },
+  fade_grays: { label: "Monochrome fade", xfade: "fadegrays" },
+  smooth_right: { label: "Smooth push right", xfade: "smoothright" },
+  smooth_down: { label: "Smooth push down", xfade: "smoothdown" },
+  slide_right: { label: "Slide right", xfade: "slideright" },
+  wipe_up: { label: "Wipe up", xfade: "wipeup" },
+  circle_close: { label: "Circle close", xfade: "circleclose" },
 } as const;
 export type TransitionId = keyof typeof TRANSITIONS;
 export const TRANSITION_IDS = Object.keys(TRANSITIONS) as [TransitionId, ...TransitionId[]];
@@ -137,11 +144,11 @@ export const MOTION_IDS = Object.keys(MOTIONS) as [MotionId, ...MotionId[]];
 export const MOTION_INTENSITIES = ["subtle", "medium", "strong"] as const;
 export type MotionIntensity = (typeof MOTION_INTENSITIES)[number];
 
-export const TEXT_STYLES = ["title", "subtitle", "caption", "kicker", "quote"] as const;
+export const TEXT_STYLES = ["title", "subtitle", "caption", "kicker", "quote", "label"] as const;
 export type TextStyleId = (typeof TEXT_STYLES)[number];
 export const TEXT_POSITIONS = ["top", "center", "lower_third", "bottom"] as const;
 export type TextPosition = (typeof TEXT_POSITIONS)[number];
-export const TEXT_ANIMATIONS = ["fade", "rise", "fade_scale", "blur_in"] as const;
+export const TEXT_ANIMATIONS = ["fade", "rise", "fade_scale", "blur_in", "typewriter", "slide_in", "pop"] as const;
 export type TextAnimation = (typeof TEXT_ANIMATIONS)[number];
 
 export const FIT_MODES = {

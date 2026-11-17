@@ -60,7 +60,7 @@ export async function renderEdl(
   const paths: PlanPaths = {
     resolve: (rel) => resolveProjectPath(projectId, rel),
     workDir,
-    segmentPath: (i) => path.join(workDir, `seg_${String(i).padStart(3, "0")}.mp4`),
+    segmentPath: (i) => path.join(workDir, `seg_${String(i).padStart(3, "0")}.mkv`),
     outputPath: tempOut,
     assRel,
     fontsRel: "fonts",

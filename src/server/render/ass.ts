@@ -40,7 +40,17 @@ function alignment(a: EdlText["align"]): number {
 function eventTags(t: EdlText, scale: number): string {
   const tags: string[] = [`\\an${alignment(t.align)}`];
   const rise = Math.round(36 * scale);
+  const slide = Math.round(90 * scale);
   switch (t.animation) {
+    case "slide_in":
+      tags.push(`\\move(${t.x + slide},${t.y},${t.x},${t.y},0,${Math.max(350, t.fadeInMs + 150)})`);
+      break;
+    case "pop":
+      tags.push(`\\pos(${t.x},${t.y})`, "\\fscx70\\fscy70", "\\t(0,220,\\fscx108\\fscy108)", "\\t(220,380,\\fscx100\\fscy100)");
+      break;
+    case "typewriter":
+      tags.push(`\\pos(${t.x},${t.y})`);
+      break;
     case "rise":
       tags.push(`\\move(${t.x},${t.y + rise},${t.x},${t.y},0,${Math.max(300, t.fadeInMs + 200)})`);
       break;
@@ -53,9 +63,26 @@ function eventTags(t: EdlText, scale: number): string {
     default:
       tags.push(`\\pos(${t.x},${t.y})`);
   }
-  tags.push(`\\fad(${t.fadeInMs},${t.fadeOutMs})`);
+  tags.push(t.animation === "typewriter" ? `\\fad(0,${t.fadeOutMs})` : `\\fad(${t.fadeInMs},${t.fadeOutMs})`);
   if (t.animation !== "blur_in") tags.push("\\blur0.6");
   return `{${tags.join("")}}`;
+}
+
+/** Reveal characters one by one (≤ 1.4 s total) with per-character alpha transforms. */
+function typewriter(lines: string[]): string {
+  const chars = lines.join("").length;
+  const step = Math.max(18, Math.min(60, Math.round(1400 / Math.max(1, chars))));
+  let k = 0;
+  return lines
+    .map((line) =>
+      [...line]
+        .map((ch) => {
+          const t0 = k++ * step;
+          return ch === " " ? " " : `{\\alpha&HFF&\\t(${t0},${t0 + 80},\\alpha&H00&)}${ch}`;
+        })
+        .join(""),
+    )
+    .join("\\N");
 }
 
 export function buildAssScript(edl: Edl): string {
@@ -64,17 +91,18 @@ export function buildAssScript(edl: Edl): string {
   const styles = new Map<string, string>();
   const events: string[] = [];
   for (const t of edl.texts) {
-    const key = `${t.font}|${t.sizePx}|${t.bold}|${t.italic}|${t.spacingPx}|${t.color}`;
+    const key = `${t.font}|${t.sizePx}|${t.bold}|${t.italic}|${t.spacingPx}|${t.color}|${t.boxed ? 1 : 0}`;
     let name = styles.get(key);
     if (!name) {
       name = `S${styles.size + 1}`;
       styles.set(key, name);
     }
-    const text = t.lines.map(sanitizeAssText).join("\\N");
+    const text = t.animation === "typewriter" ? typewriter(t.lines.map(sanitizeAssText)) : t.lines.map(sanitizeAssText).join("\\N");
     events.push(`Dialogue: 0,${assTime(t.startSec)},${assTime(t.endSec)},${name},,0,0,0,,${eventTags(t, scale)}${text}`);
   }
   const styleLines = [...styles.entries()].map(([key, name]) => {
-    const [font, size, bold, italic, spacing, color] = key.split("|");
+    const [font, size, bold, italic, spacing, color, boxed] = key.split("|");
+    const isBox = boxed === "1";
     const outline = Math.max(1, Math.round(2.2 * scale * 10) / 10);
     const shadow = Math.max(1, Math.round(3 * scale * 10) / 10);
     return [
@@ -83,8 +111,9 @@ export function buildAssScript(edl: Edl): string {
       size,
       assColor(color ?? "#FFFFFF"),
       assColor("#FFFFFF"),
-      assColor("#000000", 0x70), // outline: semi-transparent dark for readability
-      assColor("#000000", 0x90), // shadow
+      // Outline colour doubles as the box colour for BorderStyle 3 (label style).
+      isBox ? assColor("#0b0d14", 0x50) : assColor("#000000", 0x70),
+      isBox ? assColor("#000000", 0xc0) : assColor("#000000", 0x90),
       bold === "true" ? "-1" : "0",
       italic === "true" ? "-1" : "0",
       "0",
@@ -93,9 +122,9 @@ export function buildAssScript(edl: Edl): string {
       "100",
       spacing,
       "0",
-      "1",
-      String(outline),
-      String(shadow),
+      isBox ? "3" : "1",
+      isBox ? String(Math.round(14 * scale)) : String(outline),
+      isBox ? "0" : String(shadow),
       "5",
       "0",
       "0",

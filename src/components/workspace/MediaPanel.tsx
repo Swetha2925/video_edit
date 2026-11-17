@@ -220,8 +220,8 @@ export function MediaPanel({ detail, sys, busy, refresh, onError }: { detail: Pr
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-muted">Music</h3>
           {audio.map((a) => (
-            <div key={a.id} className={cx("card flex flex-wrap items-center gap-4 p-4", a.excluded && "opacity-50")}>
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-panel-3">
+            <div key={a.id} className={cx("card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4", a.excluded && "opacity-50")}>
+              <div className="hidden h-10 w-10 shrink-0 place-items-center rounded-xl bg-panel-3 sm:grid">
                 <Music className="h-5 w-5 text-accent-2" />
               </div>
               <div className="min-w-0 flex-1">
@@ -231,7 +231,7 @@ export function MediaPanel({ detail, sys, busy, refresh, onError }: { detail: Pr
                   {a.license?.license ? ` · licence: ${a.license.license}` : " · licence not recorded"}
                 </div>
               </div>
-              <audio controls preload="none" src={`/api/projects/${pid}/assets/${a.id}/thumbnail?original=1`} className="h-8 w-60" />
+              <audio controls preload="none" src={`/api/projects/${pid}/assets/${a.id}/thumbnail?original=1`} className="h-8 w-full sm:w-60" />
               <div className="flex gap-1">
                 <IconBtn label={a.excluded ? "Include" : "Exclude"} disabled={busy} onClick={() => act(`x${a.id}`, () => api(`/api/projects/${pid}/assets/${a.id}`, { method: "PATCH", json: { excluded: !a.excluded } }))}>
                   {a.excluded ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}

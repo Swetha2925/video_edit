@@ -143,6 +143,10 @@ export function createLocalStoryboard(opts: { project: AgentProject; brief: Crea
   let lastStylised = -10;
   const cta = callToActionFrom(project.prompt);
   const captionPool = project.captionsEnabled ? [...brief.requiredText] : [];
+  // Typography motion that suits the style (titles) and caption treatment.
+  const titleAnim: SceneText["animation"] = avoidFlashy ? "fade" : ["documentary", "business_promo", "product_ad"].includes(style) ? "typewriter" : ["energetic_montage", "birthday", "event_highlights"].includes(style) ? "pop" : "rise";
+  const captionStyle: SceneText["style"] = ["business_promo", "product_ad", "food_product", "event_highlights"].includes(style) ? "label" : "caption";
+  const captionAnim: SceneText["animation"] = avoidFlashy ? "fade" : style === "fashion_lifestyle" || style === "energetic_montage" ? "slide_in" : "fade";
 
   seq.forEach((c, i) => {
     const role = i === 0 ? "hook" : c === peak ? "peak" : i === seq.length - 1 ? "closing" : "build";
@@ -170,8 +174,8 @@ export function createLocalStoryboard(opts: { project: AgentProject; brief: Crea
     const cropOk = c.a.analysis ? c.a.analysis.verticalCropSuitability === "good" : !landscape;
     let text: SceneText | null = null;
     if (project.captionsEnabled) {
-      if (i === 0 && brief.title) text = { content: brief.title.slice(0, 60), style: "title", position: textPosition(c.a), animation: avoidFlashy ? "fade" : "rise" };
-      else if (i > 0 && role !== "closing" && captionPool.length && i % 2 === 1) text = { content: (captionPool.shift() as string).slice(0, 120), style: "caption", position: textPosition(c.a), animation: "fade" };
+      if (i === 0 && brief.title) text = { content: brief.title.slice(0, 60), style: "title", position: textPosition(c.a), animation: titleAnim };
+      else if (i > 0 && role !== "closing" && captionPool.length && i % 2 === 1) text = { content: (captionPool.shift() as string).slice(0, 120), style: captionStyle, position: textPosition(c.a), animation: captionAnim };
     }
     const reasons: Record<string, string> = {
       hook: `Opens on the strongest shot (hook ${c.hook}/5${c.a.analysis ? `, ${c.a.analysis.summary.replace(/^Measured: /, "").split(";")[0]}` : ""}) to stop the scroll.`,
@@ -199,6 +203,15 @@ export function createLocalStoryboard(opts: { project: AgentProject; brief: Crea
     });
   });
 
+  // Text the user asked for must never be dropped: place leftovers on free scenes,
+  // then as the end card's subtitle.
+  let leftoverNote: string | null = null;
+  for (const s of scenes.slice(1)) {
+    if (!captionPool.length) break;
+    if (!s.text) s.text = { content: (captionPool.shift() as string).slice(0, 120), style: captionStyle, position: textPosition(opts.assets.find((a) => a.id === s.assetId) as AgentAsset), animation: captionAnim };
+  }
+  if (captionPool.length && scenes[0] && !scenes[0].text) scenes[0].text = { content: (captionPool.shift() as string).slice(0, 120), style: captionStyle, position: "lower_third", animation: captionAnim };
+
   const music = !project.silentOutput ? opts.assets.find((a) => a.kind === "audio" && !a.excluded) : undefined;
   let musicStart = 0;
   if (music?.audio) {
@@ -214,9 +227,11 @@ export function createLocalStoryboard(opts: { project: AgentProject; brief: Crea
     gradeIntensity: brief.colorGrade === "natural" ? 0.55 : avoidFlashy ? 0.6 : 0.75,
     typography: brief.typography,
     music: music ? { assetId: music.id, startSec: Math.round(musicStart * 100) / 100, volume: 0.9, beatSync: Boolean(music.audio?.bpm) } : null,
-    endCard: cta && project.captionsEnabled ? { text: cta.slice(0, 80), subtext: null } : null,
+    endCard: cta && project.captionsEnabled ? { text: cta.slice(0, 80), subtext: captionPool.length ? (captionPool.shift() as string).slice(0, 80) : null } : null,
     fadeOutEnding: !["energetic_montage", "event_highlights"].includes(style),
     scenes,
   };
+  if (captionPool.length) leftoverNote = `Not enough scenes to show: ${captionPool.map((c) => `"${c}"`).join(", ")} — add more media or a longer duration.`;
+  if (leftoverNote) sb.logline = `${leftoverNote} ${sb.logline}`.slice(0, 400);
   return normalizeDurations(sb, D).storyboard;
 }

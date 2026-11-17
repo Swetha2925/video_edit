@@ -38,6 +38,15 @@ export interface FfmpegStep {
   kind: "segment" | "loudness" | "final";
 }
 
+/**
+ * Intermediate segments are temporary. Up to 1080p they use UT Video (lossless, ~2× faster
+ * to encode and decode than x264 — measured); above that, near-lossless x264 ultrafast
+ * keeps temporary disk use reasonable. Both avoid an extra lossy generation.
+ */
+export function intermediateCodecArgs(W: number, H: number): string[] {
+  return W * H <= 1920 * 1080 * 1.1 ? ["-c:v", "utvideo"] : ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "10"];
+}
+
 const n3 = (v: number) => (Math.round(v * 1000) / 1000).toString();
 const SUPERSAMPLE = 2;
 
@@ -110,12 +119,7 @@ export function segmentStep(edl: Edl, i: number, paths: PlanPaths): FfmpegStep {
     "-map",
     "[v]",
     "-an",
-    "-c:v",
-    "libx264",
-    "-preset",
-    "veryfast",
-    "-crf",
-    "12",
+    ...intermediateCodecArgs(W, H),
     "-pix_fmt",
     "yuv420p",
     "-r",

@@ -202,6 +202,21 @@ export function planLocalRevision(opts: { storyboard: Storyboard; feedback: stri
     global.textScale = Math.min(1.4, r2((sb.textScale ?? 1) * 1.15));
     notes.push(`make text larger (${Math.round(global.textScale * 100)}% size)`);
   }
+  if (/\b(background|box|backdrop|panel)\b.*\b(text|captions?)\b|\b(text|captions?)\b.*\b(background|box|backdrop)\b|\bhard to read\b|\bmore legible\b/.test(t)) {
+    sb.scenes.forEach((s) => {
+      const tx = cur(s.id).text;
+      if (tx && tx.style !== "title") upd(s.id, { text: { ...tx, style: "label" } });
+    });
+    notes.push("put captions on a translucent box for legibility");
+  }
+  const anim = /\btypewriter\b|\btyped\b/.test(t) ? "typewriter" : /\bpop\b|\bbounce\b/.test(t) ? "pop" : /\bslide\b.*\btext\b|\btext\b.*\bslide\b/.test(t) ? "slide_in" : /\b(simple|plain|gentle) (text|captions?)\b/.test(t) ? "fade" : null;
+  if (anim && textRef) {
+    sb.scenes.forEach((s) => {
+      const tx = cur(s.id).text;
+      if (tx) upd(s.id, { text: { ...tx, animation: anim } });
+    });
+    notes.push(`animate text with a ${anim.replace("_", "-")} effect`);
+  }
   const quoted = extractQuoted(fb);
   if (quoted.length) {
     const q = quoted[0] as string;

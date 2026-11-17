@@ -135,6 +135,12 @@ describe("local director", () => {
     expect(texts).toEqual(expect.arrayContaining(["Kerala reel", "Kerala, slowly"]));
     expect(texts.every((t) => ["Kerala reel", "Kerala, slowly"].includes(t as string))).toBe(true);
   });
+  it("always places text the user asked for, even with few scenes", () => {
+    const two = createLocalStoryboard({ project: project({ durationSec: 8, prompt: 'Add "Golden hour". End with the text "See you soon".' }), brief: createLocalBrief({ project: project({ durationSec: 8, prompt: 'Add "Golden hour". End with the text "See you soon".' }), assets: assets.slice(0, 2) }), assets: assets.slice(0, 2) });
+    const all = [...two.scenes.map((s) => s.text?.content), two.endCard?.text, two.endCard?.subtext];
+    expect(all).toContain("Golden hour");
+    expect(two.endCard?.text).toBe("See you soon");
+  });
   it("uses the video's strongest moment as its in-point", () => {
     const v = sb.scenes.find((s) => s.assetId === "v-0000000001");
     expect(v?.sourceInSec).toBe(2);
@@ -210,6 +216,14 @@ describe("local revision interpreter (CLAUDE.md examples)", () => {
     expect(apply("lower the music").r.storyboard.music?.volume).toBeLessThan(sb.music!.volume);
     expect(apply('End with "See you in Kerala"').r.storyboard.endCard?.text).toBe("See you in Kerala");
     expect(apply("no music").r.storyboard.music).toBeNull();
+  });
+  it("text background and text animation requests", () => {
+    const withCaption = { ...sb, scenes: sb.scenes.map((s, i) => (i === 1 ? { ...s, text: { content: "Hello", style: "caption" as const, position: "top" as const, animation: "fade" as const } } : s)) };
+    const p1 = planLocalRevision({ storyboard: withCaption, feedback: "Put a background behind the captions", assets, durationSec: 30 });
+    const r1 = applyRevisionOps(withCaption, p1.ops, 30);
+    expect(r1.storyboard.scenes[1]?.text?.style).toBe("label");
+    const p2 = planLocalRevision({ storyboard: withCaption, feedback: "Use a typewriter effect for the text", assets, durationSec: 30 });
+    expect(applyRevisionOps(withCaption, p2.ops, 30).storyboard.scenes[1]?.text?.animation).toBe("typewriter");
   });
   it("asks for clarification on requests it cannot map", () => {
     const p = planLocalRevision({ storyboard: sb, feedback: "Make it feel like Tuesday.", assets, durationSec: 30 });

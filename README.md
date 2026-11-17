@@ -40,7 +40,7 @@ Requirements: Node.js ≥ 20.9 (tested on 22). No system FFmpeg, Docker or Postg
 
 The engine is chosen automatically: Claude if `ANTHROPIC_API_KEY` is set, otherwise the local engine. Every result is labelled with which engine produced it.
 
-**Revision phrases the local engine understands** (combine freely): "make the opening / first 3 seconds more exciting", "use the *beach* photo first" (any word from a file name), "put the *boat* clip at the end", "reduce the transitions" / "only hard cuts" / "smoother transitions", "make the text smaller / bigger", "remove all text", "change the title to "…"", "add "…"", "end with "…"", "make the colours more natural / warmer / cooler / more vibrant / black and white / vintage", "use a slower, emotional pace" / "make it faster", "remove scene 3" / "remove the *market* photo", "make it 20 seconds" / "make it shorter", "less zoom" / "no zoom" / "more movement", "lower / raise the music", "no music", "a stronger ending", "no fade". Anything else gets a clarifying question instead of a guess.
+**Revision phrases the local engine understands** (combine freely): "make the opening / first 3 seconds more exciting", "use the *beach* photo first" (any word from a file name), "put the *boat* clip at the end", "reduce the transitions" / "only hard cuts" / "smoother transitions", "make the text smaller / bigger", "remove all text", "change the title to "…"", "add "…"", "end with "…"", "make the colours more natural / warmer / cooler / more vibrant / black and white / vintage", "use a slower, emotional pace" / "make it faster", "remove scene 3" / "remove the *market* photo", "make it 20 seconds" / "make it shorter", "less zoom" / "no zoom" / "more movement", "lower / raise the music", "no music", "a stronger ending", "no fade", "put a background behind the captions", "use a typewriter / pop / slide effect for the text". Anything else gets a clarifying question instead of a guess.
 
 ### Optional: enable Claude
 
@@ -71,6 +71,14 @@ ANTHROPIC_EFFORT=high               # low | medium | high | xhigh | max
 7. **Ask for changes** (side panel): plain-language revisions become controlled storyboard edits followed by a new render. Earlier versions are always kept.
 
 ---
+
+## Creative vocabulary
+
+- **Transitions (20):** cut, crossfade, soft dissolve, blur dissolve, monochrome fade, dip to black/white, smooth push (left/right/up/down), slide (left/right/up), wipe (left/up), circle reveal/close, zoom-in blend, radial wipe.
+- **Text styles:** title, subtitle, caption, kicker (small caps), quote, label (on a translucent box for busy backgrounds).
+- **Text animations:** fade, rise, scale-in, blur-in, typewriter, slide-in, pop.
+- **Colour grades:** natural, warm natural, cinematic teal-orange, cool crisp, vintage film, moody, vibrant, bright airy, black & white.
+- **Camera motion:** push in, pull out, pans (4 directions), drift, each in three intensities, eased and aimed at the subject.
 
 ## Commands
 
@@ -123,7 +131,7 @@ Change `provider = "sqlite"` to `"postgresql"` in `prisma/schema.prisma`, set `D
 
 ## Honest limitations (current version)
 
-- **Rendering speed:** scenes are encoded in parallel; on a 4-core CPU a 30 s 1080×1920 reel takes roughly 1–2 minutes. 4K takes proportionally longer. Upscaled sources are labelled; upscaling adds no detail.
+- **Rendering speed:** scenes are encoded in parallel into lossless UT Video intermediates (measured ~2× faster than x264 for that step); on a 4-core CPU a 30 s 1080×1920 reel with 15 shots renders in about 80 s. 4K takes proportionally longer. Upscaled sources are labelled; upscaling adds no detail.
 - **The local engine doesn't recognise content.** It measures how shots look (light, colour, detail, focus); it can't tell a temple from a tree. That's why it never writes captions on its own.
 - **Voice-over and speech captions** are not implemented. That would need a TTS or speech-to-text service, which is a new external provider, so I'll ask before adding one. On-screen captions are generated from the brief and can be edited.
 - **Remotion** is not used. Everything renders with FFmpeg plus libass typography. Remotion's licence requires a paid company licence for organisations above 3 people, so it should be a deliberate decision.
