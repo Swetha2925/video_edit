@@ -1,0 +1,53 @@
+[
+  {
+    "id": "A_travel_reel",
+    "title": "Test A — Travel reel",
+    "prompt": "Create a 30-second cinematic travel reel. Start with the strongest image as a hook, build a journey, elegant captions, warm natural grading, memorable ending.",
+    "settings": { "durationSec": 30, "style": "cinematic_travel", "platform": "instagram_reels" },
+    "assets": [
+      { "kind": "photo_landscape", "count": 7 }, { "kind": "photo_portrait", "count": 4 }, { "kind": "photo_square", "count": 1 },
+      { "kind": "clip_landscape", "count": 2 }, { "kind": "clip_portrait", "count": 1 }, { "kind": "music_120bpm", "count": 1 }
+    ],
+    "expect": { "render": true }
+  },
+  {
+    "id": "B_product_promo",
+    "title": "Test B — Product promotion",
+    "prompt": "Create a premium 15-second product promo. Keep the product visible, readable text, no invented product claims, clean ending.",
+    "settings": { "durationSec": 15, "style": "product_ad", "platform": "instagram_reels" },
+    "assets": [{ "kind": "photo_square", "count": 3 }, { "kind": "photo_portrait", "count": 2 }],
+    "expect": { "render": true, "noInventedClaims": true }
+  },
+  {
+    "id": "C_low_quality",
+    "title": "Test C — Low-quality media",
+    "prompt": "Create a beautiful reel.",
+    "settings": { "durationSec": 12, "style": "emotional_memories" },
+    "assets": [{ "kind": "photo_dark", "count": 2 }, { "kind": "photo_blurry", "count": 2 }, { "kind": "photo_small", "count": 1 }],
+    "expect": { "render": true, "qualityFlagged": true, "upscaleLabelled": true }
+  },
+  {
+    "id": "D_conflict",
+    "title": "Test D — Conflicting instructions",
+    "prompt": "Make a 60-second video of these photos.",
+    "settings": { "durationSec": 20, "style": "documentary" },
+    "assets": [{ "kind": "photo_landscape", "count": 4 }],
+    "expect": { "render": false, "conflictDetected": true }
+  },
+  {
+    "id": "E_revision",
+    "title": "Test E — Revision",
+    "prompt": "A 30-second cinematic reel.",
+    "settings": { "durationSec": 30, "style": "cinematic_travel" },
+    "assets": [{ "kind": "photo_landscape", "count": 5 }, { "kind": "photo_portrait", "count": 3 }, { "kind": "music_120bpm", "count": 1 }],
+    "expect": { "render": true, "revision": { "feedback": "Make the first 3 seconds more engaging and keep everything else the same.", "openingOnlySec": 3 } }
+  },
+  {
+    "id": "F_invalid_file",
+    "title": "Test F — Invalid file",
+    "prompt": "Make a reel.",
+    "settings": { "durationSec": 8 },
+    "assets": [{ "kind": "photo_landscape", "count": 1 }, { "kind": "fake_jpg", "count": 1 }, { "kind": "corrupt_mp4", "count": 1 }],
+    "expect": { "render": true, "invalidRejected": 2 }
+  }
+]

@@ -15,3 +15,5 @@ coverage/
 prisma/test.db*
 .e2e-media/
 demo-assets/
+.eval-storage/
+prisma/eval.db*

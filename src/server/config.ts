@@ -53,7 +53,8 @@ export type AppConfig = ReturnType<typeof buildConfig>;
 
 function buildConfig() {
   const env = EnvSchema.parse(process.env);
-  const storageRoot = path.resolve(process.cwd(), env.STORAGE_ROOT);
+  // Runtime-configured location; excluded from build-time file tracing.
+  const storageRoot = path.resolve(/*turbopackIgnore: true*/ process.cwd(), env.STORAGE_ROOT);
   return {
     appName: env.NEXT_PUBLIC_APP_NAME,
     isProd: env.NODE_ENV === "production",

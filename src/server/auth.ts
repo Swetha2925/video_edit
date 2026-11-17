@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { db, newId } from "./db";
 import { getConfig, ensureDir } from "./config";
 import { AppError } from "./errors";
@@ -55,10 +55,12 @@ export async function requireUserId(): Promise<string> {
     if (user) return user.id;
   }
   const user = await db.user.create({ data: { id: newId() } });
+  // Secure cookies only over HTTPS (behind a proxy, via X-Forwarded-Proto) or when forced.
+  const proto = (await headers()).get("x-forwarded-proto");
   jar.set(SESSION_COOKIE, signUserId(user.id), {
     httpOnly: true,
     sameSite: "lax",
-    secure: getConfig().isProd,
+    secure: proto === "https" || process.env.COOKIE_SECURE === "true",
     path: "/",
     maxAge: 60 * 60 * 24 * 365,
   });
