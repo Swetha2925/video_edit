@@ -47,7 +47,9 @@ export function PlanPanel({ detail, sys, busy, refresh, onError, goRender }: { d
         if (t === undefined) return s;
         const trimmed = t.trim();
         if (!trimmed) return { ...s, text: null };
-        return { ...s, text: s.text ? { ...s.text, content: trimmed } : { content: trimmed, style: "caption", position: "lower_third", animation: "fade" } };
+        // New captions go away from the measured subject (focal point) of the shot.
+        const fy = assetsById.get(s.assetId)?.analysis?.focalPoint.y ?? s.focus?.y ?? 0.45;
+        return { ...s, text: s.text ? { ...s.text, content: trimmed } : { content: trimmed, style: "caption", position: fy < 0.45 ? "bottom" : "top", animation: "fade" } };
       }),
     };
     return act("save", () => api(`/api/projects/${pid}/storyboard`, { method: "PUT", json: { baseVersion: sb.version, storyboard: next } }));
@@ -68,7 +70,7 @@ export function PlanPanel({ detail, sys, busy, refresh, onError, goRender }: { d
           </div>
           <textarea className={cx(inputCls, "min-h-20")} value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Your answer…" maxLength={1000} />
           <div className="flex justify-end gap-2">
-            <Button variant="primary" disabled={!answer.trim() || busy} loading={acting === "answer"} onClick={() => act("answer", () => api(`/api/projects/${pid}/plan`, { method: "POST", json: { mode: "ai", clarification: answer } }))} icon={<Sparkles className="h-4 w-4" />}>
+            <Button variant="primary" disabled={!answer.trim() || busy} loading={acting === "answer"} onClick={() => act("answer", () => api(`/api/projects/${pid}/plan`, { method: "POST", json: { mode: "smart", clarification: answer } }))} icon={<Sparkles className="h-4 w-4" />}>
               Answer &amp; continue planning
             </Button>
           </div>
@@ -80,7 +82,7 @@ export function PlanPanel({ detail, sys, busy, refresh, onError, goRender }: { d
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <Badge tone="accent">
-                <Sparkles className="h-3 w-3" /> Creative brief v{detail.brief.version}
+                <Sparkles className="h-3 w-3" /> Creative brief v{detail.brief.version}{aiOn ? "" : " · local engine"}
               </Badge>
               <h2 className="mt-2 font-display text-2xl">{detail.brief.title}</h2>
               <p className="mt-1 max-w-3xl text-sm text-muted">{detail.brief.story}</p>
@@ -126,11 +128,9 @@ export function PlanPanel({ detail, sys, busy, refresh, onError, goRender }: { d
           <div>No plan yet.</div>
           <p className="max-w-md text-sm text-muted">Add media, then ask Claude to plan your video — or use Basic assembly to render without AI.</p>
           <div className="flex gap-2">
-            {aiOn && (
-              <Button variant="primary" disabled={busy} loading={acting === "plan"} onClick={() => act("plan", () => api(`/api/projects/${pid}/plan`, { method: "POST", json: { mode: "ai" } }))} icon={<Sparkles className="h-4 w-4" />}>
-                Plan with Claude
-              </Button>
-            )}
+            <Button variant="primary" disabled={busy} loading={acting === "plan"} onClick={() => act("plan", () => api(`/api/projects/${pid}/plan`, { method: "POST", json: { mode: "smart" } }))} icon={<Sparkles className="h-4 w-4" />}>
+              {aiOn ? "Plan with Claude" : "Plan my video"}
+            </Button>
             <Button disabled={busy} loading={acting === "basic"} onClick={() => act("basic", () => api(`/api/projects/${pid}/plan`, { method: "POST", json: { mode: "basic" } }))} icon={<Wand2 className="h-4 w-4" />}>
               Basic assembly (no AI)
             </Button>
@@ -142,14 +142,12 @@ export function PlanPanel({ detail, sys, busy, refresh, onError, goRender }: { d
         <section className="space-y-5">
           <SectionTitle
             title={`Storyboard v${sb.version}`}
-            subtitle={`${sb.data.scenes.length} scenes · ${fmtSec(sb.data.scenes.reduce((s, x) => s + x.durationSec, 0))} · ${sb.source === "heuristic" ? "Basic assembly (no AI)" : sb.source === "ai" ? "Planned by Claude" : sb.source === "revision" ? "Revised from your feedback" : sb.source === "auto_fix" ? "Auto-fixed after QC" : "Edited by you"}${sb.approved ? " · approved" : ""}`}
+            subtitle={`${sb.data.scenes.length} scenes · ${fmtSec(sb.data.scenes.reduce((s, x) => s + x.durationSec, 0))} · ${sb.source === "heuristic" ? "Basic assembly" : sb.source === "ai" ? "Planned by Claude" : sb.source === "local" ? "Planned by the local creative engine" : sb.source === "revision" ? "Revised from your feedback" : sb.source === "auto_fix" ? "Auto-fixed after QC" : "Edited by you"}${sb.approved ? " · approved" : ""}`}
             right={
               <div className="flex flex-wrap gap-2">
-                {aiOn && (
-                  <Button variant="ghost" disabled={busy} loading={acting === "plan"} onClick={() => act("plan", () => api(`/api/projects/${pid}/plan`, { method: "POST", json: { mode: "ai" } }))} icon={<RefreshCw className="h-4 w-4" />}>
-                    New plan
-                  </Button>
-                )}
+                <Button variant="ghost" disabled={busy} loading={acting === "plan"} onClick={() => act("plan", () => api(`/api/projects/${pid}/plan`, { method: "POST", json: { mode: "smart" } }))} icon={<RefreshCw className="h-4 w-4" />}>
+                  New plan
+                </Button>
                 {dirty && (
                   <Button disabled={busy} loading={acting === "save"} onClick={saveEdits} icon={<Save className="h-4 w-4" />}>
                     Save text edits

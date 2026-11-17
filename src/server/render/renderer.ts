@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import type { Edl } from "@/lib/schemas";
 import { getConfig } from "../config";
@@ -96,9 +97,41 @@ export async function renderEdl(
     return res;
   };
 
-  for (const step of steps.filter((s) => s.kind === "segment")) {
-    await runStep(step, step.weight * Math.max(0.5, step.durationSec));
-  }
+  // Scene segments are independent: encode them in parallel (bounded by CPU cores),
+  // aggregating each process's real FFmpeg progress into one overall figure.
+  const segs = steps.filter((s) => s.kind === "segment");
+  const parallel = Math.max(1, Math.min(3, Math.floor(os.cpus().length / 2)));
+  const partial = new Map<number, number>();
+  const report = (label: string) => {
+    const running = [...partial.values()].reduce((a, b) => a + b, 0);
+    opts.onProgress?.({ fraction: Math.min(0.999, (doneWeight + running) / totalWeight), message: label });
+  };
+  let next = 0;
+  const workerLoop = async () => {
+    for (;;) {
+      const idx = next++;
+      const step = segs[idx];
+      if (!step) return;
+      const w = step.weight * Math.max(0.5, step.durationSec);
+      partial.set(idx, 0);
+      report(`Rendering scenes (${Math.min(idx + 1, segs.length)}/${segs.length})`);
+      await runProcess(ffmpegPath(), step.args, {
+        timeoutMs: remaining(),
+        signal: opts.signal,
+        cwd: workDir,
+        onStdoutLine: (line) => {
+          const m = /^out_time_(?:us|ms)=(\d+)/.exec(line);
+          if (m && step.durationSec > 0) {
+            partial.set(idx, Math.min(1, Number(m[1]) / 1_000_000 / step.durationSec) * w);
+            report(`Rendering scenes (${segs.length - (segs.length - Math.min(next, segs.length))}/${segs.length})`);
+          }
+        },
+      });
+      partial.delete(idx);
+      doneWeight += w;
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(parallel, segs.length) }, () => workerLoop()));
   let measured = null;
   if (ln) {
     const res = await runStep(ln, ln.weight * Math.max(0.5, ln.durationSec));

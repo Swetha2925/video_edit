@@ -84,7 +84,7 @@ export function QualityReportView({ report, projectId }: { report: QualityReport
         <div className="mb-3 flex items-center gap-2 text-sm">
           <Sparkles className="h-4 w-4 text-accent" />
           <span className="font-medium">Creative review</span>
-          <span className="text-xs text-faint">{cr.assessedBy === "claude_vision" ? "Claude vision on frames from the actual render — automated review is imperfect" : "Not available"}</span>
+          <span className="text-xs text-faint">{cr.assessedBy === "claude_vision" ? "Claude vision on frames from the actual render — automated review is imperfect" : cr.assessedBy === "local_heuristics" ? "On-device checks of frames from the actual render — estimates, shown with their certainty" : "Not available"}</span>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {(

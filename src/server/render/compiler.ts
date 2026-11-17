@@ -83,6 +83,9 @@ export function compileStoryboard(sb: Storyboard, ctx: CompileContext): CompileR
   const H = project.height;
   const warnings: string[] = [];
   const safe = safeArea(project.platform, W, H);
+  // Global text size multiplier; never shrinks below a readable floor.
+  const k = sb.textScale ?? 1;
+  const sized = (sp: ReturnType<typeof styleSpec>) => ({ ...sp, basePx: Math.round(sp.basePx * k), minPx: Math.max(34, Math.round(sp.minPx * Math.min(1, k))) });
 
   // 1. Scene boundaries in frames (cumulative rounding avoids drift).
   const boundaries: number[] = [0];
@@ -177,7 +180,7 @@ export function compileStoryboard(sb: Storyboard, ctx: CompileContext): CompileR
     });
 
     if (s.text) {
-      const spec = styleSpec(s.text.style, sb.typography);
+      const spec = sized(styleSpec(s.text.style, sb.typography));
       const lay = layoutText(s.text.content, spec, s.text.position, { width: W, height: H }, safe);
       const sStart = (bounds[i] as number) / fps + (i === 0 ? 0.25 : Math.min(0.3, tin / fps / 2 + 0.1));
       const sEnd = (bounds[i + 1] as number) / fps - (i === sb.scenes.length - 1 ? 0.3 : 0.15);
@@ -227,7 +230,7 @@ export function compileStoryboard(sb: Storyboard, ctx: CompileContext): CompileR
       last.endSec = r3(Math.max(last.startSec + 0.5, ecStart - 0.2));
       if (last.endSec >= ecStart) texts.pop();
     }
-    const titleSpec = styleSpec("title", sb.typography);
+    const titleSpec = sized(styleSpec("title", sb.typography));
     const lay = layoutText(sb.endCard.text, titleSpec, "center", { width: W, height: H }, safe);
     texts.push({
       id: "end_title",
@@ -251,7 +254,7 @@ export function compileStoryboard(sb: Storyboard, ctx: CompileContext): CompileR
       box: lay.box,
     });
     if (sb.endCard.subtext) {
-      const subSpec = styleSpec("kicker", sb.typography);
+      const subSpec = sized(styleSpec("kicker", sb.typography));
       const subLay = layoutText(sb.endCard.subtext, subSpec, "center", { width: W, height: H }, safe);
       const offset = Math.round(lay.box.bottom - lay.y + subLay.sizePx * 1.1);
       texts.push({

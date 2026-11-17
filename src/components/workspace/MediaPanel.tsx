@@ -88,9 +88,9 @@ export function MediaPanel({ detail, sys, busy, refresh, onError }: { detail: Pr
         subtitle="Photos (JPEG, PNG, WebP), clips (MP4, MOV) and licensed music (MP3, M4A, WAV, AAC). Originals are never modified."
         right={
           <div className="flex flex-wrap gap-2">
-            {aiOn && (
+            {(
               <Button onClick={() => act("analyse", () => api(`/api/projects/${pid}/analyse`, { method: "POST", json: { force: false } }))} loading={acting === "analyse"} disabled={busy || uploading || usable === 0} icon={<Sparkles className="h-4 w-4" />}>
-                {analysedCount > 0 && analysedCount === visuals.length ? "Re-check analysis" : "Analyse with Claude"}
+                {analysedCount > 0 && analysedCount === visuals.length ? "Re-check analysis" : aiOn ? "Analyse with Claude" : "Analyse media"}
               </Button>
             )}
             <Button
@@ -103,9 +103,9 @@ export function MediaPanel({ detail, sys, busy, refresh, onError }: { detail: Pr
             >
               Basic assembly (no AI)
             </Button>
-            {aiOn && (
-              <Button variant="primary" onClick={() => act("plan", () => api(`/api/projects/${pid}/plan`, { method: "POST", json: { mode: "ai" } }))} loading={acting === "plan"} disabled={busy || uploading || usable === 0} icon={<Sparkles className="h-4 w-4" />}>
-                Plan my video with Claude
+            {(
+              <Button variant="primary" onClick={() => act("plan", () => api(`/api/projects/${pid}/plan`, { method: "POST", json: { mode: "smart" } }))} loading={acting === "plan"} disabled={busy || uploading || usable === 0} icon={<Sparkles className="h-4 w-4" />}>
+                {aiOn ? "Plan my video with Claude" : "Plan my video"}
               </Button>
             )}
           </div>
@@ -113,8 +113,8 @@ export function MediaPanel({ detail, sys, busy, refresh, onError }: { detail: Pr
       />
 
       {!aiOn && (
-        <Notice tone="warn" title="AI agent not configured">
-          Add <code className="text-fg">ANTHROPIC_API_KEY</code> to <code className="text-fg">.env</code> and restart to enable Claude vision analysis, creative planning, revisions and creative review. Until then you can render a real video with <b>Basic assembly (no AI)</b>.
+        <Notice tone="info" title="Running on the local creative engine">
+          Analysis, planning, revisions and quality review run entirely on this machine — no account, key or upload to any service. It measures light, colour, sharpness and where attention falls in each shot, but it doesn&apos;t recognise objects or places, so on-screen text only uses words you provide.
         </Notice>
       )}
 
@@ -311,7 +311,7 @@ function AssetCard({ a, pid, busy, onToggle, onDelete }: { a: AssetView; pid: st
         {a.analysis && (
           <button onClick={() => setOpen(!open)} className="focus-ring w-full rounded-lg text-left text-xs text-muted hover:text-fg">
             <span className="line-clamp-2">{a.analysis.summary}</span>
-            <span className="text-accent">{open ? "Less" : "AI analysis"}</span>
+            <span className="text-accent">{open ? "Less" : a.analysis.analyzer === "local_metrics" ? "Measured analysis" : "AI analysis"}</span>
           </button>
         )}
         {open && a.analysis && (

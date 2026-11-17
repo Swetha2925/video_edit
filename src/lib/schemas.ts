@@ -98,6 +98,8 @@ export const AssetAnalysisSchema = z.object({
     .max(10),
   recommended: z.boolean(),
   recommendationReason: z.string().max(300),
+  /** Who produced the analysis: Claude vision, or on-device measurements. */
+  analyzer: z.enum(["claude_vision", "local_metrics"]).default("claude_vision"),
 });
 export type AssetAnalysis = z.infer<typeof AssetAnalysisSchema>;
 
@@ -150,6 +152,8 @@ export const StoryboardSchema = z.object({
     .nullable(),
   endCard: z.object({ text: z.string().trim().min(1).max(80), subtext: z.string().max(80).nullable() }).nullable(),
   fadeOutEnding: z.boolean(),
+  /** Global multiplier for on-screen text size (used by "make the text smaller/bigger"). */
+  textScale: z.number().min(0.7).max(1.4).optional(),
   scenes: z.array(SceneSchema).min(1).max(60),
 });
 export type Storyboard = z.infer<typeof StoryboardSchema>;
@@ -167,7 +171,7 @@ export const RevisionOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("move_scene"), sceneId: z.string(), afterSceneId: z.string().nullable() }),
   z.object({
     op: z.literal("update_global"),
-    changes: StoryboardSchema.pick({ colorGrade: true, gradeIntensity: true, typography: true, music: true, endCard: true, fadeOutEnding: true, title: true }).partial(),
+    changes: StoryboardSchema.pick({ colorGrade: true, gradeIntensity: true, typography: true, music: true, endCard: true, fadeOutEnding: true, title: true, textScale: true }).partial(),
   }),
   z.object({ op: z.literal("set_total_duration"), durationSec: z.number().min(3).max(600) }),
 ]);
@@ -337,7 +341,7 @@ export const QualityReportSchema = z.object({
   audioChecks: z.array(CheckResultSchema),
   visualChecks: z.array(CheckResultSchema),
   creativeReview: z.object({
-    assessedBy: z.enum(["claude_vision", "not_available"]),
+    assessedBy: z.enum(["claude_vision", "local_heuristics", "not_available"]),
     openingHook: ReviewRating,
     captionReadability: ReviewRating,
     visualConsistency: ReviewRating,

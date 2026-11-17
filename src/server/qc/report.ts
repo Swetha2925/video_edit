@@ -8,7 +8,7 @@ export function buildQualityReport(opts: {
   inspection: RenderInspection;
   evaluation: TechnicalEvaluation;
   edl: Edl;
-  review: CreativeReview | null;
+  review: (CreativeReview & { assessedBy?: "claude_vision" | "local_heuristics" }) | null;
   reviewError: string | null;
   frames: { timeSec: number; rel: string }[];
   contactSheetRel: string | null;
@@ -40,7 +40,7 @@ export function buildQualityReport(opts: {
     visualChecks: ev.visual,
     creativeReview: review
       ? {
-          assessedBy: "claude_vision",
+          assessedBy: review.assessedBy ?? "claude_vision",
           openingHook: review.openingHook,
           captionReadability: review.captionReadability,
           visualConsistency: review.visualConsistency,
@@ -55,7 +55,7 @@ export function buildQualityReport(opts: {
           visualConsistency: "not_assessed",
           composition: "not_assessed",
           ending: "not_assessed",
-          summary: opts.reviewError ?? "Creative review requires Claude (ANTHROPIC_API_KEY). Technical checks were still run on the real file.",
+          summary: opts.reviewError ?? "Creative review was skipped because a blocking technical check failed.",
         },
     issues,
     recommendations,

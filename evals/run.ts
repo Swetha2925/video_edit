@@ -1,7 +1,7 @@
 /**
  * ReelCraft agent evaluation runner.
  *
- *   npm run eval              # offline: deterministic pipeline (Basic assembly) + objective checks
+ *   npm run eval              # offline: full on-device creative engine + objective checks (free)
  *   npm run eval -- --ai      # full Claude agent + objective checks + rubric judge (uses the Claude API; costs money)
  *   npm run eval -- --only A_travel_reel,C_low_quality
  *
@@ -105,24 +105,22 @@ for (const c of selected) {
       add("low_quality_detected", flagged >= 4, `${flagged}/${assets.length} assets flagged dark/soft by measurement`);
     }
 
-    await enqueueJob(pid, "plan", { mode: MODE === "ai" ? "ai" : "basic" });
+    await enqueueJob(pid, "plan", { mode: "ai" }); // Claude when --ai, otherwise the local creative engine
     await drainQueue();
     let p = await db.project.findUniqueOrThrow({ where: { id: pid } });
     const brief = await db.brief.findFirst({ where: { projectId: pid }, orderBy: { version: "desc" } });
     const briefData = brief ? CreativeBriefSchema.parse(JSON.parse(brief.json)) : null;
 
     if (c.expect.conflictDetected) {
-      if (MODE === "ai") {
-        const detected = p.stage === "needs_clarification" || (briefData?.conflicts.length ?? 0) > 0;
-        add("conflict_detected", detected, p.stage === "needs_clarification" ? `asked: ${p.stageMessage}` : `conflicts: ${JSON.stringify(briefData?.conflicts ?? [])}`);
-      } else add("conflict_detected", null, "requires --ai (deterministic planner does not read prompts)");
+      const detected = p.stage === "needs_clarification" || (briefData?.conflicts.length ?? 0) > 0;
+      add("conflict_detected", detected, p.stage === "needs_clarification" ? `asked: ${p.stageMessage}` : `conflicts: ${JSON.stringify(briefData?.conflicts ?? [])}`);
       if (p.stage === "needs_clarification") {
         await enqueueJob(pid, "plan", { mode: "ai", clarification: "Keep the 20-second setting." });
         await drainQueue();
         p = await db.project.findUniqueOrThrow({ where: { id: pid } });
       }
     }
-    if (c.expect.qualityFlagged && MODE === "ai") add("brief_mentions_limitations", (briefData?.qualityConcerns.length ?? 0) > 0, briefData?.qualityConcerns.join(" ") ?? "no brief");
+    if (c.expect.qualityFlagged) add("brief_mentions_limitations", (briefData?.qualityConcerns.length ?? 0) > 0, briefData?.qualityConcerns.join(" ") ?? "no brief");
 
     const render = await db.render.findFirst({ where: { projectId: pid, status: "passed" }, orderBy: { version: "desc" } });
     const anyRender = await db.render.findFirst({ where: { projectId: pid }, orderBy: { version: "desc" } });
@@ -155,8 +153,7 @@ for (const c of selected) {
     }
 
     if (c.expect.revision) {
-      if (MODE !== "ai") add("revision_scoped", null, "requires --ai");
-      else if (render) {
+      if (render) {
         const before = await db.storyboard.findFirstOrThrow({ where: { projectId: pid }, orderBy: { version: "desc" } });
         const fb = await db.feedback.create({ data: { id: newId(), projectId: pid, message: c.expect.revision.feedback } });
         await enqueueJob(pid, "revise", { feedbackId: fb.id });

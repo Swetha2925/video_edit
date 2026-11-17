@@ -29,11 +29,11 @@ export function AppHeader({ appName }: { appName: string }) {
           {sys && (
             <div className="hidden items-center gap-2 md:flex">
               <span
-                className={cx("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs", sys.ai.configured ? "border-ok/30 text-ok" : "border-warn/30 text-warn")}
-                title={sys.ai.configured ? `Claude model: ${sys.ai.model}` : "Add ANTHROPIC_API_KEY to .env to enable the AI agent"}
+                className={cx("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs", sys.ai.configured ? "border-ok/30 text-ok" : "border-accent/30 text-accent")}
+                title={sys.ai.configured ? `Claude model: ${sys.ai.model}` : "Planning, analysis, revisions and review run on this machine. Claude is optional."}
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                {sys.ai.configured ? "Claude connected" : "AI not configured"}
+                {sys.ai.configured ? "Claude connected" : "Local creative engine"}
               </span>
               <span
                 className={cx("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs", sys.media.ok ? "border-line-strong text-muted" : "border-bad/40 text-bad")}

@@ -2,9 +2,9 @@
 
 **Give us your idea and your media. ReelCraft plans, edits, reviews, and renders your video.**
 
-ReelCraft AI is an agentic video studio. You upload photos, images, clips and licensed music, describe the video you want, and an AI agent (Claude):
+ReelCraft AI is an agentic video studio. You upload photos, images, clips and licensed music, describe the video you want, and the agent:
 
-1. analyses your media (vision for images and video keyframes, plus measured exposure and sharpness);
+1. analyses your media: exposure, sharpness, colour, contrast, where attention falls in each shot (focal point), crop safety, hook strength, and the best moments in each clip;
 2. writes a creative brief and a timed storyboard, which you review and can edit;
 3. compiles that plan into a frame-exact edit decision list (EDL);
 4. renders a **real** MP4 with FFmpeg, including transitions, Ken Burns motion, colour grading, animated typography, beat-synced cuts and loudness-normalised audio;
@@ -26,7 +26,23 @@ npm run dev          # http://localhost:3000
 
 Requirements: Node.js ≥ 20.9 (tested on 22). No system FFmpeg, Docker or PostgreSQL is needed for local development.
 
-### Enable the AI agent
+### Two creative engines — the app is complete with either
+
+| | **Local creative engine** (default, free) | **Claude** (optional) |
+|---|---|---|
+| Runs | Entirely on your machine | Anthropic API (paid per token) |
+| Media analysis | Measures light, colour, sharpness, focal point, crop safety, best video moments | Also recognises objects, places, people's actions |
+| Prompt → brief | Rule-based language understanding: length, mood, pacing, grade, typography, quoted text, things to avoid, call to action, conflicts (asks you) | Full natural-language understanding |
+| Storyboard | Director logic: hook (strongest measured shot) → establish → build → emotional peak → close; motion toward the subject; restrained, varied transitions; beat-synced cuts | Free-form creative planning |
+| Revisions | Understands direct requests (see below); asks when unsure | Any phrasing |
+| Creative QC | Checks real render frames: text over subject, readability, flat/extreme frames, consistency, hook, ending — and auto-fixes confident issues | Vision review of render frames |
+| On-screen text | Only your words (title, quoted text, call to action) — never invented | Generated from the brief |
+
+The engine is chosen automatically: Claude if `ANTHROPIC_API_KEY` is set, otherwise the local engine. Every result is labelled with which engine produced it.
+
+**Revision phrases the local engine understands** (combine freely): "make the opening / first 3 seconds more exciting", "use the *beach* photo first" (any word from a file name), "put the *boat* clip at the end", "reduce the transitions" / "only hard cuts" / "smoother transitions", "make the text smaller / bigger", "remove all text", "change the title to "…"", "add "…"", "end with "…"", "make the colours more natural / warmer / cooler / more vibrant / black and white / vintage", "use a slower, emotional pace" / "make it faster", "remove scene 3" / "remove the *market* photo", "make it 20 seconds" / "make it shorter", "less zoom" / "no zoom" / "more movement", "lower / raise the music", "no music", "a stronger ending", "no fade". Anything else gets a clarifying question instead of a guess.
+
+### Optional: enable Claude
 
 Add your key to `.env` and restart:
 
@@ -38,7 +54,7 @@ ANTHROPIC_EFFORT=high               # low | medium | high | xhigh | max
 
 **Costs:** Claude API calls are billed per token by Anthropic. A typical project uses about 1 vision call per asset, plus a brief, a storyboard, one creative review per render, and one call per revision. Per-project limits are enforced (`MAX_MODEL_CALLS_PER_PROJECT`), and usage is shown in the workspace. Requests opt into Anthropic's server-side refusal fallback (`fallbacks: "default"`), so a safety-classifier decline is retried on a fallback model within the same call.
 
-**Without a key** the app still works end to end with **Basic assembly (no AI)**. This deterministic planner opens on the best-measured shot, applies the style preset, and renders and quality-checks a real video. It is clearly labelled everywhere.
+**Without a key** everything works with the local creative engine. There is also **Basic assembly**, a minimal planner that keeps upload order.
 
 **Privacy:** with a key set, downscaled images (≤1024 px) and video keyframes are sent to the Anthropic API for analysis and review. Original files never leave your machine.
 
@@ -65,7 +81,7 @@ ANTHROPIC_EFFORT=high               # low | medium | high | xhigh | max
 | `npm test` | Unit and integration tests (Vitest). Integration tests render real videos with FFmpeg |
 | `npm run test:ui` | Playwright UI end-to-end test (uses a running server or starts one) |
 | `npm run e2e` | HTTP end-to-end smoke test against a running server (`E2E_MODE=ai` to use Claude) |
-| `npm run eval` | Offline agent evaluation (cases A–F, deterministic checks) |
+| `npm run eval` | Agent evaluation with the local engine (cases A–F, all checks, free) |
 | `npm run eval -- --ai` | Full Claude evaluation with rubric judge (**uses the Claude API, which incurs cost**) |
 | `npm run demo:assets` | Generates 8 photos, 2 clips and 1 music track into `./demo-assets` (synthetic, licence-free) |
 | `npm run typecheck` | TypeScript strict check |
@@ -107,10 +123,11 @@ Change `provider = "sqlite"` to `"postgresql"` in `prisma/schema.prisma`, set `D
 
 ## Honest limitations (current version)
 
-- **Rendering speed:** about 3–4× real time on a 4-core CPU at 1080×1920 (for example, a 30 s reel with 15 clips takes about 110 s). 4K takes proportionally longer. Upscaled sources are labelled; upscaling adds no detail.
+- **Rendering speed:** scenes are encoded in parallel; on a 4-core CPU a 30 s 1080×1920 reel takes roughly 1–2 minutes. 4K takes proportionally longer. Upscaled sources are labelled; upscaling adds no detail.
+- **The local engine doesn't recognise content.** It measures how shots look (light, colour, detail, focus); it can't tell a temple from a tree. That's why it never writes captions on its own.
 - **Voice-over and speech captions** are not implemented. That would need a TTS or speech-to-text service, which is a new external provider, so I'll ask before adding one. On-screen captions are generated from the brief and can be edited.
 - **Remotion** is not used. Everything renders with FFmpeg plus libass typography. Remotion's licence requires a paid company licence for organisations above 3 people, so it should be a deliberate decision.
 - **Auth** is local-first: a signed per-browser cookie identifies a local user, and all ownership checks are enforced. Use a real identity provider before any hosted deployment.
-- **The Claude-backed paths** are covered by integration tests with a scripted model and by `npm run eval -- --ai`. They have not been run against the live API in this environment, because no key was configured.
+- **The optional Claude paths** are covered by integration tests with a scripted model; they haven't been run against the live API here (no key). The local engine paths are tested end to end with no mocks.
 - The bundled FFprobe is 4.0 (pinned npm binary) and FFmpeg is 7.0.2. Set `FFPROBE_PATH` / `FFMPEG_PATH` to use system builds.
 - `npm audit` reports `deepmerge-ts` via the Prisma 6 CLI. This is a development-time tool only and is not shipped in the app.

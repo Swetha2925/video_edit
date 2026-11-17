@@ -14,6 +14,20 @@ A language model is good at taste and planning: which photo makes the best hook,
 
 Claude only ever returns **structured JSON** that matches a schema. The harness validates that JSON strictly, and only deterministic code turns it into FFmpeg argument arrays.
 
+## 1b. Two interchangeable creative engines
+
+Every creative tool (`analyse_assets`, `create_creative_brief`, `create_storyboard`, `revise_edit`, `run_quality_checks`) has two implementations behind the same typed contract:
+
+- **Claude** (`src/server/agent/`), used when `ANTHROPIC_API_KEY` is set.
+- **The local creative engine** (`src/server/local/`), used otherwise. It runs entirely on-device:
+  - `vision.ts`: decodes small rasters with FFmpeg and measures brightness, contrast, saturation, colourfulness, warmth and dominant colours. A saliency map (edges + colour distinctness) gives the focal point, attention concentration and 9:16 crop safety. Video clips are sampled with motion energy to find their strongest moments. It never claims to recognise objects.
+  - `brief.ts`: rule-based language understanding (length, mood, pacing, grade, typography, quoted text, avoid-list, call to action, platform/silent/voice-over conflicts). A duration conflict triggers a clarification question.
+  - `director.ts`: story structure (hook → establish → build → peak → close), pacing-based shot counts, colour-alternating order, motion toward the focal point, restrained transitions (stylised only at beats, never back-to-back), and the strongest video moments as in-points.
+  - `reviser.ts`: plain-English feedback → the same edit operations Claude produces. Unrecognised requests become questions.
+  - `reviewer.ts`: checks render frames for text over the subject, readability on bright backgrounds, flat or extreme frames, scene consistency, hook and ending. It emits concrete fixes for confident findings, and the auto-fix loop applies them.
+
+Because both engines emit the same schemas, everything downstream (validation, compiler, renderer, QC, versioning) is shared and identical.
+
 ## 2. The data pipeline
 
 ```

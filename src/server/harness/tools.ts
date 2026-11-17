@@ -23,6 +23,13 @@ import { resolveProjectPath } from "../storage";
 import { defineTool, ProjectRef } from "./registry";
 import { analyseAsset, createBrief, createStoryboard, planRevision, reviewRender, CreativeReviewSchema } from "../agent/steps";
 import { applyRevisionOps } from "./revision";
+import { aiConfigured } from "../agent/client";
+import { analyseLocally } from "../local/vision";
+import { createLocalBrief } from "../local/brief";
+import { createLocalStoryboard } from "../local/director";
+import { planLocalRevision } from "../local/reviser";
+import { reviewLocally } from "../local/reviewer";
+import { RevisionOpSchema } from "@/lib/schemas";
 import type { AgentAsset, AgentProject } from "../agent/context";
 import type { CompileContext } from "../render/types";
 
@@ -98,12 +105,27 @@ const CompileCtxSchema = z.custom<CompileContext>((v) => typeof v === "object" &
 
 export const analyseAssetsTool = defineTool({
   name: "analyse_assets",
-  description: "Claude vision analysis of one photo or a video's keyframes (structured, validated).",
+  description: "Analyse one photo or a video (Claude vision when configured, otherwise on-device measurements).",
   input: ProjectRef.extend({ asset: AgentAssetSchema, rel: z.string() }),
   output: AssetAnalysisSchema,
   timeoutMs: 240_000,
   run: async (i, ctx) => {
     const a = i.asset;
+    if (!aiConfigured()) {
+      // On-device analysis: measured light, colour, detail, focal point and best moments.
+      const { features: _f, ...analysis } = await analyseLocally({
+        src: resolveProjectPath(ctx.projectId, i.rel),
+        workDir: resolveProjectPath(ctx.projectId, "work/analysis"),
+        kind: a.kind === "video" ? "video" : "image",
+        width: a.width,
+        height: a.height,
+        durationSec: a.durationSec,
+        metrics: a.metrics,
+        signal: ctx.signal,
+      });
+      void _f;
+      return analysis;
+    }
     const images: { file: string; timeSec: number | null }[] = [];
     if (a.kind === "image") {
       const file = resolveProjectPath(ctx.projectId, `frames/vision/${a.id}.jpg`);
@@ -130,7 +152,10 @@ export const createCreativeBriefTool = defineTool({
   input: ProjectRef.extend({ project: AgentProjectSchema, assets: z.array(AgentAssetSchema), clarification: z.string().nullable() }),
   output: CreativeBriefSchema,
   timeoutMs: 300_000,
-  run: (i, ctx) => createBrief({ projectId: ctx.projectId, project: i.project, assets: i.assets, clarification: i.clarification, signal: ctx.signal }),
+  run: async (i, ctx) =>
+    aiConfigured()
+      ? createBrief({ projectId: ctx.projectId, project: i.project, assets: i.assets, clarification: i.clarification, signal: ctx.signal })
+      : createLocalBrief({ project: i.project, assets: i.assets, clarification: i.clarification }),
   summarize: (_i, o) => ({ output: o ? `${o.title}; clarification=${o.needsClarification}` : undefined }),
 });
 
@@ -140,15 +165,20 @@ export const createStoryboardTool = defineTool({
   input: ProjectRef.extend({ project: AgentProjectSchema, brief: CreativeBriefSchema, assets: z.array(AgentAssetSchema), compile: CompileCtxSchema }),
   output: z.object({ storyboard: StoryboardSchema, repairs: z.number().int() }),
   timeoutMs: 600_000,
-  run: (i, ctx) =>
-    createStoryboard({
+  run: async (i, ctx) => {
+    if (!aiConfigured()) {
+      const storyboard = createLocalStoryboard({ project: { ...i.project, durationSec: i.brief.durationSec }, brief: i.brief, assets: i.assets });
+      return { storyboard, repairs: 0 };
+    }
+    return createStoryboard({
       projectId: ctx.projectId,
       project: i.project,
       brief: i.brief,
       assets: i.assets,
       signal: ctx.signal,
       validate: (sb) => validateStoryboard(sb, i.compile).errors,
-    }),
+    });
+  },
   summarize: (_i, o) => ({ output: o ? `${o.storyboard.scenes.length} scenes, ${o.repairs} repairs` : undefined }),
 });
 
@@ -234,24 +264,28 @@ export const extractReviewFramesTool = defineTool({
 
 export const creativeReviewTool = defineTool({
   name: "run_quality_checks",
-  description: "Claude vision review of rendered frames against the storyboard intent.",
+  description: "Creative review of frames from the rendered file (Claude vision when configured, otherwise on-device checks).",
   input: ProjectRef.extend({
     frames: z.array(z.object({ rel: z.string(), timeSec: z.number(), sceneId: z.string().nullable() })),
     storyboard: StoryboardSchema.nullable(),
     technicalSummary: z.string(),
     output: z.object({ width: z.number(), height: z.number(), durationSec: z.number() }),
+    edl: EdlSchema,
+    compile: CompileCtxSchema,
+    hooks: z.record(z.string(), z.number()),
   }),
-  output: CreativeReviewSchema,
+  output: CreativeReviewSchema.extend({ assessedBy: z.enum(["claude_vision", "local_heuristics"]), fixes: z.array(RevisionOpSchema) }),
   timeoutMs: 300_000,
-  run: (i, ctx) =>
-    reviewRender({
-      projectId: ctx.projectId,
-      frames: i.frames.map((f) => ({ file: resolveProjectPath(ctx.projectId, f.rel), timeSec: f.timeSec, sceneId: f.sceneId })),
-      storyboard: i.storyboard,
-      technicalSummary: i.technicalSummary,
-      output: i.output,
-      signal: ctx.signal,
-    }),
+  run: async (i, ctx) => {
+    const frames = i.frames.map((f) => ({ file: resolveProjectPath(ctx.projectId, f.rel), timeSec: f.timeSec, sceneId: f.sceneId }));
+    if (!aiConfigured()) {
+      const assets = new Map([...i.compile.assets.values()].map((a) => [a.id, { ...a, hookStrength: i.hooks[a.id], hasAnalysis: i.hooks[a.id] !== undefined }]));
+      const out = await reviewLocally({ edl: i.edl, storyboard: i.storyboard, assets, frames, workDir: resolveProjectPath(ctx.projectId, "work/review"), signal: ctx.signal });
+      return { ...out.review, assessedBy: "local_heuristics" as const, fixes: out.fixes };
+    }
+    const r = await reviewRender({ projectId: ctx.projectId, frames, storyboard: i.storyboard, technicalSummary: i.technicalSummary, output: i.output, signal: ctx.signal });
+    return { ...r, assessedBy: "claude_vision" as const, fixes: [] };
+  },
   summarize: (_i, o) => ({ output: o ? `hook=${o.openingHook} issues=${o.issues.length}` : undefined }),
 });
 
@@ -259,29 +293,32 @@ export const reviseEditTool = defineTool({
   name: "revise_edit",
   description: "Translate feedback into controlled storyboard edit operations and apply them.",
   input: ProjectRef.extend({ project: AgentProjectSchema, storyboard: StoryboardSchema, feedback: z.string().min(1).max(2000), assets: z.array(AgentAssetSchema), compile: CompileCtxSchema }),
-  output: z.object({ plan: RevisionPlanSchema, storyboard: StoryboardSchema.nullable(), changedSceneIds: z.array(z.string()) }),
+  output: z.object({ plan: RevisionPlanSchema, storyboard: StoryboardSchema.nullable(), changedSceneIds: z.array(z.string()), durationSec: z.number(), errors: z.array(z.string()) }),
   timeoutMs: 600_000,
   run: async (i, ctx) => {
     let applied: ReturnType<typeof applyRevisionOps> | null = null;
-    const plan = await planRevision({
-      projectId: ctx.projectId,
-      project: i.project,
-      storyboard: i.storyboard,
-      feedback: i.feedback,
-      assets: i.assets,
-      signal: ctx.signal,
-      validate: (p) => {
-        if (p.needsClarification) return p.clarificationQuestion ? [] : ["needsClarification is true but clarificationQuestion is empty"];
-        const r = applyRevisionOps(i.storyboard, p.ops, i.project.durationSec);
-        if (r.errors.length) return r.errors;
-        const v = validateStoryboard(r.storyboard, i.compile);
-        if (!v.valid) return v.errors;
-        applied = r;
-        return [];
-      },
-    });
+    let duration = i.project.durationSec;
+    // Same validation for Claude and local plans: apply ops, then validate against the
+    // (possibly new) total duration.
+    const validate = (p: { needsClarification: boolean; clarificationQuestion: string | null; ops: z.infer<typeof RevisionOpSchema>[] }) => {
+      if (p.needsClarification) return p.clarificationQuestion ? [] : ["needsClarification is true but clarificationQuestion is empty"];
+      const setTotal = [...p.ops].reverse().find((o) => o.op === "set_total_duration");
+      const target = setTotal && setTotal.op === "set_total_duration" ? setTotal.durationSec : i.project.durationSec;
+      const r = applyRevisionOps(i.storyboard, p.ops, target);
+      if (r.errors.length) return r.errors;
+      const v = validateStoryboard(r.storyboard, { ...i.compile, project: { ...i.compile.project, durationSec: target } });
+      if (!v.valid) return v.errors;
+      applied = r;
+      duration = target;
+      return [];
+    };
+    let errors: string[] = [];
+    const plan = aiConfigured()
+      ? await planRevision({ projectId: ctx.projectId, project: i.project, storyboard: i.storyboard, feedback: i.feedback, assets: i.assets, signal: ctx.signal, validate })
+      : planLocalRevision({ storyboard: i.storyboard, feedback: i.feedback, assets: i.assets, durationSec: i.project.durationSec });
+    if (!aiConfigured()) errors = validate(plan);
     const a = applied as ReturnType<typeof applyRevisionOps> | null;
-    return { plan, storyboard: plan.needsClarification || !a ? null : (a.storyboard as Storyboard), changedSceneIds: a?.changedSceneIds ?? [] };
+    return { plan, storyboard: plan.needsClarification || !a ? null : (a.storyboard as Storyboard), changedSceneIds: a?.changedSceneIds ?? [], durationSec: duration, errors };
   },
   summarize: (i, o) => ({ input: i.feedback.slice(0, 120), output: o ? `${o.plan.ops.length} ops, changed ${o.changedSceneIds.join(",")}` : undefined }),
 });

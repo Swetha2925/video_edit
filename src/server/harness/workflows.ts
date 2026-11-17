@@ -16,7 +16,7 @@ import { cleanWorkDir } from "../storage";
 import { registerHandler, setFailureHook, type JobContext, type JobResult } from "./jobs";
 import { runTool } from "./registry";
 import { canTransition, type Stage } from "./stateMachine";
-import { diffStoryboards } from "./revision";
+import { applyRevisionOps, diffStoryboards } from "./revision";
 import type { StyleId } from "@/lib/presets";
 import {
   analyseAssetsTool,
@@ -120,10 +120,7 @@ async function analyseAssets(ctx: JobContext, opts: { force: boolean; progressSp
   const { assets } = await loadContext(projectId);
   const targets = assets.filter((a) => a.kind !== "audio" && !a.excluded && (opts.force || !a.analysisJson));
   if (targets.length === 0) return { analysed: 0, failed: 0 };
-  if (!aiConfigured()) {
-    await recordEvent(projectId, "analysis_skipped", "AI vision analysis skipped: Claude is not configured. Metadata and measured quality are still available.", "warning");
-    return { analysed: 0, failed: 0 };
-  }
+  const engine = aiConfigured() ? "Claude vision" : "on-device analysis";
   let done = 0;
   let failed = 0;
   const [p0, p1] = opts.progressSpan;
@@ -142,10 +139,10 @@ async function analyseAssets(ctx: JobContext, opts: { force: boolean; progressSp
         await recordEvent(projectId, "analysis_failed", `Could not analyse "${a.originalName}": ${errorMessage(e)}`, "warning");
       }
       done++;
-      ctx.progress(p0 + ((p1 - p0) * done) / targets.length, `Analysing media with Claude vision (${done}/${targets.length})`);
+      ctx.progress(p0 + ((p1 - p0) * done) / targets.length, `Analysing media with ${engine} (${done}/${targets.length})`);
     }
   };
-  await Promise.all([worker(), worker(), worker()]);
+  await Promise.all(aiConfigured() ? [worker(), worker(), worker()] : [worker(), worker()]);
   if (failed === targets.length) throw new AppError("AI_FAILED", "Asset analysis failed for every file.", { transient: true });
   return { analysed: done - failed, failed };
 }
@@ -175,10 +172,12 @@ registerHandler("analyse", async (ctx) => {
 
 registerHandler("plan", async (ctx): Promise<JobResult> => {
   const { projectId } = ctx;
-  const mode = ctx.payload.mode === "basic" || !aiConfigured() ? "basic" : "ai";
+  // "smart" (default) = Claude when configured, otherwise the on-device creative engine.
+  const mode = ctx.payload.mode === "basic" ? "basic" : "ai";
+  const engineName = aiConfigured() ? "Claude" : "the local creative engine";
   const clarification = typeof ctx.payload.clarification === "string" ? ctx.payload.clarification : null;
   const autoRender = Boolean(ctx.payload.autoRender);
-  await setStage(projectId, "planning", mode === "ai" ? "Claude is planning your video" : "Assembling a basic plan");
+  await setStage(projectId, "planning", mode === "ai" ? `${aiConfigured() ? "Claude is" : "The local creative engine is"} planning your video` : "Assembling a basic plan");
   let { project, agentAssets, compile, agent } = await loadContext(projectId);
   const visuals = agentAssets.filter((a) => !a.excluded && a.kind !== "audio");
   if (visuals.length === 0) throw new AppError("BAD_REQUEST", "Add at least one photo or video clip (and don't exclude them all) before planning.");
@@ -208,7 +207,13 @@ registerHandler("plan", async (ctx): Promise<JobResult> => {
     ctx.progress(0.38, "Writing the creative brief");
     const brief = await runTool(createCreativeBriefTool, { projectId, project: agent, assets: agentAssets, clarification }, { projectId, jobId: ctx.job.id, signal: ctx.signal });
     const bv = await nextVersion("brief", projectId);
-    await db.brief.create({ data: { id: newId(), projectId, version: bv, json: JSON.stringify(brief), source: "ai" } });
+    await db.brief.create({ data: { id: newId(), projectId, version: bv, json: JSON.stringify(brief), source: aiConfigured() ? "ai" : "local" } });
+    // A clarification answer may change the length (e.g. "make it 60 seconds").
+    if (clarification && Math.abs(brief.durationSec - project.durationSec) > 0.01 && brief.durationSec >= 5 && brief.durationSec <= getConfig().limits.maxOutputDurationSec) {
+      await db.project.update({ where: { id: projectId }, data: { durationSec: brief.durationSec } });
+      await recordEvent(projectId, "duration_changed", `Video length set to ${brief.durationSec}s from your answer.`, "info");
+      ({ project, agentAssets, compile, agent } = await loadContext(projectId));
+    }
     await recordEvent(projectId, "brief_ready", `Creative brief v${bv}: "${brief.title}".${brief.assumptions.length ? ` Assumptions: ${brief.assumptions.slice(0, 3).join("; ")}.` : ""}`, "info", { conflicts: brief.conflicts, qualityConcerns: brief.qualityConcerns });
     if (brief.needsClarification && brief.clarificationQuestion && !clarification) {
       await setStage(projectId, "needs_clarification", brief.clarificationQuestion);
@@ -218,8 +223,8 @@ registerHandler("plan", async (ctx): Promise<JobResult> => {
     ctx.progress(0.5, "Designing the storyboard");
     const out = await runTool(createStoryboardTool, { projectId, project: agent, brief, assets: agentAssets, compile }, { projectId, jobId: ctx.job.id, signal: ctx.signal });
     sb = out.storyboard;
-    source = "ai";
-    note = out.repairs > 0 ? `Claude corrected its plan ${out.repairs} time(s) after validation feedback.` : "";
+    source = aiConfigured() ? "ai" : "local";
+    note = aiConfigured() ? (out.repairs > 0 ? `Claude corrected its plan ${out.repairs} time(s) after validation feedback.` : "") : `Planned on-device by ${engineName} from your prompt and measured media analysis.`;
   }
 
   const norm = normalizeDurations(sb, project.durationSec);
@@ -321,8 +326,8 @@ registerHandler("render", async (ctx): Promise<JobResult> => {
     const frames = await runTool(extractReviewFramesTool, { projectId, rel: outputRel, version, times: reviewTimestamps(edl) }, tctx);
     let review = null;
     let reviewError: string | null = null;
-    if (aiConfigured() && evaluation.blockingFailures === 0) {
-      ctx.progress(0.94, `${prefix}Claude is reviewing the frames`);
+    if (evaluation.blockingFailures === 0) {
+      ctx.progress(0.94, `${prefix}${aiConfigured() ? "Claude is reviewing" : "Reviewing"} the frames`);
       try {
         review = await runTool(
           creativeReviewTool,
@@ -332,6 +337,9 @@ registerHandler("render", async (ctx): Promise<JobResult> => {
             storyboard: sb,
             technicalSummary: technicalSummary(evaluation),
             output: { width: edl.output.width, height: edl.output.height, durationSec: edl.output.totalFrames / edl.output.fps },
+            edl,
+            compile,
+            hooks: Object.fromEntries(agentAssets.filter((a) => a.analysis).map((a) => [a.id, a.analysis?.hookStrength ?? 3])),
           },
           tctx,
         );
@@ -368,6 +376,11 @@ registerHandler("render", async (ctx): Promise<JobResult> => {
 
     // Diagnose and revise within the retry budget.
     let fixed = await deterministicFix(report, sb);
+    if (!fixed && review && review.fixes.length > 0) {
+      // On-device reviewer supplied concrete edits for confident findings.
+      const applied = applyRevisionOps(sb, review.fixes, compile.project.durationSec);
+      if (applied.errors.length === 0) fixed = { sb: applied.storyboard, note: `Auto-fix: ${report.issues.filter((i) => i.severity === "high").map((i) => i.suggestedFix).join(" ")}`.slice(0, 500) };
+    }
     if (!fixed && aiConfigured()) {
       const fixable = report.issues.filter((i) => i.severity === "high" && i.certainty !== "uncertain");
       if (fixable.length > 0) {
@@ -400,7 +413,6 @@ registerHandler("render", async (ctx): Promise<JobResult> => {
 
 registerHandler("revise", async (ctx): Promise<JobResult> => {
   const { projectId } = ctx;
-  if (!aiConfigured()) throw new AppError("AI_NOT_CONFIGURED", "Natural-language revisions need Claude. Add ANTHROPIC_API_KEY to .env.");
   const feedbackId = String(ctx.payload.feedbackId ?? "");
   const fb = await db.feedback.findFirst({ where: { id: feedbackId, projectId } });
   if (!fb) throw new AppError("NOT_FOUND", "Feedback not found.");
@@ -409,14 +421,18 @@ registerHandler("revise", async (ctx): Promise<JobResult> => {
   await setStage(projectId, "planning", "Applying your feedback");
   const { compile, agent, agentAssets } = await loadContext(projectId);
   const current = parseStoryboardRow(row);
-  ctx.progress(0.2, "Claude is interpreting your feedback");
+  ctx.progress(0.2, aiConfigured() ? "Claude is interpreting your feedback" : "Interpreting your feedback");
   const out = await runTool(reviseEditTool, { projectId, project: agent, storyboard: current, feedback: fb.message, assets: agentAssets, compile }, { projectId, jobId: ctx.job.id, signal: ctx.signal });
   if (out.plan.needsClarification || !out.storyboard) {
-    const q = out.plan.clarificationQuestion ?? "Could you clarify what you'd like to change?";
+    const q = out.plan.clarificationQuestion ?? (out.errors.length ? `I couldn't apply that change safely (${out.errors[0]}). Could you rephrase or be more specific?` : "Could you clarify what you'd like to change?");
     await db.feedback.update({ where: { id: fb.id }, data: { status: "needs_clarification", summary: q, fromStoryboardVer: row.version } });
     await recordEvent(projectId, "revision_question", `About your feedback: ${q}`, "warning");
     await setStage(projectId, "plan_ready", q);
     return { result: { clarification: q } };
+  }
+  if (out.durationSec !== agent.durationSec) {
+    await db.project.update({ where: { id: projectId }, data: { durationSec: out.durationSec } });
+    await recordEvent(projectId, "duration_changed", `Video length changed to ${out.durationSec}s.`, "info");
   }
   const diff = diffStoryboards(current, out.storyboard);
   const saved = await saveStoryboard(projectId, out.storyboard, "revision", { parentVersion: row.version, note: out.plan.understanding, approved: true });

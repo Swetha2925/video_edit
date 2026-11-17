@@ -45,6 +45,7 @@ vi.mock("@/server/agent/client", async (orig) => {
           moments: text.includes("Keyframe at") ? [{ startSec: 0.5, endSec: 3, description: "pattern", quality: "strong" }] : [],
           recommended: true,
           recommendationReason: "Strong colours.",
+          analyzer: "claude_vision",
         };
         data = a;
       } else if (req.purpose.startsWith("creative_brief")) {

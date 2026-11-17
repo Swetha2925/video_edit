@@ -13,7 +13,7 @@ export function RevisionChat({ detail, aiOn, busy, refresh, onError, onSent }: {
   const [msg, setMsg] = useState("");
   const [sending, setSending] = useState(false);
   const pid = detail.project.id;
-  const canRevise = aiOn && Boolean(detail.storyboard);
+  const canRevise = Boolean(detail.storyboard);
   const send = async () => {
     if (!msg.trim()) return;
     setSending(true);
@@ -33,9 +33,7 @@ export function RevisionChat({ detail, aiOn, busy, refresh, onError, onSent }: {
       <div className="mb-3 flex items-center gap-2 text-sm font-medium">
         <MessageSquare className="h-4 w-4 text-accent" /> Ask for changes
       </div>
-      {!aiOn ? (
-        <p className="text-xs text-muted">Natural-language revisions need Claude. Add ANTHROPIC_API_KEY to enable them; you can still edit captions in the Plan tab.</p>
-      ) : !detail.storyboard ? (
+      {!detail.storyboard ? (
         <p className="text-xs text-muted">Create a plan first, then describe changes in plain language.</p>
       ) : (
         <>
@@ -59,7 +57,7 @@ export function RevisionChat({ detail, aiOn, busy, refresh, onError, onSent }: {
             aria-label="Describe the change you want"
           />
           <div className="mt-2 flex items-center justify-between">
-            <span className="text-[11px] text-faint">Only the parts you mention change; earlier versions are kept.</span>
+            <span className="text-[11px] text-faint">{aiOn ? "Only the parts you mention change; earlier versions are kept." : 'Local engine: use direct requests like the chips above, "remove scene 3", or quotes for text.'}</span>
             <Button variant="primary" className="px-3 py-1.5" onClick={send} loading={sending} disabled={busy || !msg.trim()} icon={<Send className="h-3.5 w-3.5" />}>
               Revise
             </Button>
