@@ -74,6 +74,7 @@ export function MediaPanel({ detail, sys, busy, refresh, onError }: { detail: Pr
     }
   };
 
+  const uploading = items.some((i) => i.status === "queued" || i.status === "uploading" || i.status === "processing");
   const visuals = detail.assets.filter((a) => a.kind !== "audio");
   const audio = detail.assets.filter((a) => a.kind === "audio");
   const usable = visuals.filter((a) => !a.excluded).length;
@@ -88,7 +89,7 @@ export function MediaPanel({ detail, sys, busy, refresh, onError }: { detail: Pr
         right={
           <div className="flex flex-wrap gap-2">
             {aiOn && (
-              <Button onClick={() => act("analyse", () => api(`/api/projects/${pid}/analyse`, { method: "POST", json: { force: false } }))} loading={acting === "analyse"} disabled={busy || usable === 0} icon={<Sparkles className="h-4 w-4" />}>
+              <Button onClick={() => act("analyse", () => api(`/api/projects/${pid}/analyse`, { method: "POST", json: { force: false } }))} loading={acting === "analyse"} disabled={busy || uploading || usable === 0} icon={<Sparkles className="h-4 w-4" />}>
                 {analysedCount > 0 && analysedCount === visuals.length ? "Re-check analysis" : "Analyse with Claude"}
               </Button>
             )}
@@ -96,14 +97,14 @@ export function MediaPanel({ detail, sys, busy, refresh, onError }: { detail: Pr
               variant="secondary"
               onClick={() => act("basic", () => api(`/api/projects/${pid}/plan`, { method: "POST", json: { mode: "basic", autoRender: false } }))}
               loading={acting === "basic"}
-              disabled={busy || usable === 0}
+              disabled={busy || uploading || usable === 0}
               icon={<Wand2 className="h-4 w-4" />}
               title="Deterministic assembly without AI analysis"
             >
               Basic assembly (no AI)
             </Button>
             {aiOn && (
-              <Button variant="primary" onClick={() => act("plan", () => api(`/api/projects/${pid}/plan`, { method: "POST", json: { mode: "ai" } }))} loading={acting === "plan"} disabled={busy || usable === 0} icon={<Sparkles className="h-4 w-4" />}>
+              <Button variant="primary" onClick={() => act("plan", () => api(`/api/projects/${pid}/plan`, { method: "POST", json: { mode: "ai" } }))} loading={acting === "plan"} disabled={busy || uploading || usable === 0} icon={<Sparkles className="h-4 w-4" />}>
                 Plan my video with Claude
               </Button>
             )}
@@ -182,6 +183,7 @@ export function MediaPanel({ detail, sys, busy, refresh, onError }: { detail: Pr
         </div>
       )}
 
+      {uploading && <div className="text-xs text-muted">Planning is available once all uploads have finished.</div>}
       {items.length > 0 && (
         <div className="card divide-y divide-line">
           {items.map((it) => (

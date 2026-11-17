@@ -50,8 +50,9 @@ export function resolveProjectPath(projectId: string, relPath: string): string {
   if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
     throw new AppError("FORBIDDEN", "Unsafe file path.");
   }
-  const top = rel.split(path.sep)[0] as ProjectSubdir;
-  if (!PROJECT_SUBDIRS.includes(top)) throw new AppError("FORBIDDEN", "Unsafe file path.");
+  const parts = rel.split(path.sep);
+  const top = parts[0] as ProjectSubdir;
+  if (parts.length < 2 || !PROJECT_SUBDIRS.includes(top)) throw new AppError("FORBIDDEN", "Unsafe file path.");
   return resolved;
 }
 

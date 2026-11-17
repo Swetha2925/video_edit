@@ -127,7 +127,9 @@ export function analyseSamples(samples: Float32Array, sampleRate = SR): AudioAna
         bestOff = off;
       }
     }
-    for (let t = bestOff; t < frames && beats.length < 2000; t += period) beats.push(Math.round(((t * HOP) / sampleRate) * 1000) / 1000);
+    // An onset registers when the analysis window's leading edge reaches it, so the
+    // event time is the window END (frame start + WIN), not the frame start.
+    for (let t = bestOff; t < frames && beats.length < 2000; t += period) beats.push(Math.round(((t * HOP + WIN) / sampleRate) * 1000) / 1000);
     if (confidence < 0.05) {
       bpm = null;
       beats = [];

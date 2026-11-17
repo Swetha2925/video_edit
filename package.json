@@ -15,7 +15,8 @@
     "setup": "node scripts/setup.mjs",
     "demo:assets": "tsx scripts/generate-demo-assets.ts",
     "eval": "tsx evals/run.ts",
-    "e2e": "tsx scripts/e2e-smoke.ts"
+    "e2e": "tsx scripts/e2e-smoke.ts",
+    "test:ui": "playwright test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.9.0",
@@ -29,6 +30,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "@tailwindcss/postcss": "4.3.5",
     "@types/node": "22.20.5",
     "@types/react": "19.3.0",

@@ -72,10 +72,12 @@ export function QualityReportView({ report, projectId }: { report: QualityReport
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <CheckList title="Technical" checks={report.technicalChecks} />
-        <CheckList title="Audio" checks={report.audioChecks} />
-        <CheckList title="Visual (automated)" checks={report.visualChecks} />
+        <div className="space-y-6">
+          <CheckList title="Audio" checks={report.audioChecks} />
+          <CheckList title="Visual (automated)" checks={report.visualChecks} />
+        </div>
       </div>
 
       <div className="card p-4">
